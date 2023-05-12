@@ -58,10 +58,9 @@ bot.use(createConversation(registerWalletConversation));
 bot.command("addwallet", async (ctx) => {
     // get the chat id and store the user's information plus its wallet to the current chat.
     // we should also allow the user to add their wallet to the overall bot database if requested.
-    const link = sdk.getUniversalLink();
     const wallet = ctx.message?.text?.split(" ")?.[1]!!;
     await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.id);
-    await ctx.reply(link);
+    await ctx.reply(`Registered your wallet: ${wallet}!`);
 })
 
 bot.command("send", async (ctx) => {
@@ -86,10 +85,11 @@ bot.command("send", async (ctx) => {
 const startMenu = "<b>web3telbot</b>\n\nWelcome to web3telbot.\n\nWe need to configure the bot using the buttons below or you can run the following commands\n/addwallet (address)";
 
 //Pre-assign button text
-const connectWalletButton = "Connect your wallet";
+const insertYourWalletButton = "Insert your wallet address";
+const connectYourWalletButton = "Connect your wallet with URL";
 
 //Build keyboards
-const firstMenuMarkup = new InlineKeyboard().text(connectWalletButton).text('do something else');
+const firstMenuMarkup = new InlineKeyboard().text(insertYourWalletButton).text(connectYourWalletButton);
 
 //This handler sends a menu with the inline buttons we pre-assigned above
 bot.command("start", async (ctx) => {
@@ -99,10 +99,15 @@ bot.command("start", async (ctx) => {
     });
 });
 
-bot.callbackQuery(connectWalletButton, async (ctx) => {
+bot.callbackQuery(insertYourWalletButton, async (ctx) => {
     //Update message content with corresponding menu section
     await ctx.conversation.enter("registerWalletConversation");
 });
+
+bot.callbackQuery(connectYourWalletButton, async (ctx) => {
+    const link = sdk.getUniversalLink();
+    await ctx.reply("Please access the following link to connect your wallet: " + link);
+})
 
 /*
 //This handler processes next button on the menu
