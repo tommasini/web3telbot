@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/tommasini/web3telbot/issues"
   },
-  "homepage": "https://github.com/tommasini/web3telbot#readme"
+  "homepage": "https://github.com/tommasini/web3telbot#readme",
+  "dependencies": {
+    "@metamask/sdk": "^0.2.4"
+  }
 }
