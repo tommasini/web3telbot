@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@metamask/sdk": "^0.2.4",
     "dotenv": "^16.0.3",
     "grammy": "^1.16.0"
   },
