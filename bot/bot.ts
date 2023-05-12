@@ -9,11 +9,17 @@ let screaming = false;
 //Create a new bot
 const bot = new Bot(process.env.BOT_API_KEY!!);
 
+const contact_wallets = new Map<string,string>();
 
 //This function handles the /scream command
-bot.command("scream", () => {
+bot.command("scream",  () => {
+
     screaming = true;
 });
+bot.command("addwallet", async (ctx) => {
+    // adds the wallet to a contact
+    const chat = await ctx.update.message?.contact;
+})
 
 //This function handles /whisper command
 bot.command("whisper", () => {
@@ -30,7 +36,7 @@ const backButton = "Back";
 const tutorialButton = "Tutorial";
 
 //Build keyboards
-const firstMenuMarkup = new InlineKeyboard().text(nextButton, backButton);
+const firstMenuMarkup = new InlineKeyboard().text(nextButton);
 
 const secondMenuMarkup = new InlineKeyboard().text(backButton, backButton).text(tutorialButton, "https://core.telegram.org/bots/tutorial");
 
@@ -65,8 +71,10 @@ bot.callbackQuery(nextButton, async (ctx) => {
 //This function would be added to the dispatcher as a handler for messages coming from the Bot API
 bot.on("message", async (ctx) => {
     //Print to console
+    console.log(ctx.message.new_chat_members)
+    
     console.log(
-        `${ctx.from.first_name} wrote ${
+        `${ctx.from.id} wrote ${
             "text" in ctx.message ? ctx.message.text : ""
         }`,
     );
