@@ -13,7 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.0.3",
-    "grammy": "^1.11.2"
+    "grammy": "^1.16.0"
   },
   "devDependencies": {
     "@types/node": "^20.1.3",
