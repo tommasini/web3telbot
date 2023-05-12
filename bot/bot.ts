@@ -2,23 +2,30 @@ import { Bot, InlineKeyboard } from "grammy";
 import dotenv from "dotenv";
 dotenv.config();
 
+// maps the chat id to a map of <user id to wallet>
+const chats = new Map<number, Map<number, string>>();
+
 //Store bot screaming status
 let screaming = false;
-
 
 //Create a new bot
 const bot = new Bot(process.env.BOT_API_KEY!!);
 
-const contact_wallets = new Map<string,string>();
-
 //This function handles the /scream command
 bot.command("scream",  () => {
-
     screaming = true;
 });
+
 bot.command("addwallet", async (ctx) => {
-    // adds the wallet to a contact
-    const chat = await ctx.update.message?.contact;
+    // get the chat id and store the user's information plus its wallet to the current chat.
+    // we should also allow the user to add their wallet to the overall bot database if requested.
+    const wallet = ctx.message?.text?.split(" ")?.[1];
+    if (wallet) {
+        const chat_id = (await ctx.getChat()).id;
+
+        const item = (chats.has(chat_id) ? chats : chats.set(chat_id, new Map())).get(chat_id);
+        item?.set(ctx.from!!.id, wallet);
+    }
 })
 
 //This function handles /whisper command
@@ -43,6 +50,7 @@ const secondMenuMarkup = new InlineKeyboard().text(backButton, backButton).text(
 
 //This handler sends a menu with the inline buttons we pre-assigned above
 bot.command("menu", async (ctx) => {
+    const a  = ctx.from;
     await ctx.reply(firstMenu, {
         parse_mode: "HTML",
         reply_markup: firstMenuMarkup,
@@ -71,8 +79,8 @@ bot.callbackQuery(nextButton, async (ctx) => {
 //This function would be added to the dispatcher as a handler for messages coming from the Bot API
 bot.on("message", async (ctx) => {
     //Print to console
-    console.log(ctx.message.new_chat_members)
-    
+    console.log(ctx.message)
+
     console.log(
         `${ctx.from.id} wrote ${
             "text" in ctx.message ? ctx.message.text : ""
