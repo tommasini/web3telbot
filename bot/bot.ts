@@ -1,6 +1,8 @@
-import {Bot, InlineKeyboard} from "grammy";
+import {Bot, type Context, InlineKeyboard, session} from "grammy";
+
 import {MetaMaskSDK} from "@metamask/sdk"
 import dotenv from "dotenv";
+import {type Conversation, type ConversationFlavor, conversations, createConversation} from "@grammyjs/conversations";
 
 dotenv.config();
 
@@ -16,23 +18,49 @@ ethereum?.request({
 });
 
 // Bot config
+type MyContext = Context & ConversationFlavor;
+type MyConversation = Conversation<MyContext>;
 // maps the chat id to a map of <user id to wallet>
 const chats = new Map<number, Map<number, string>>();
 
 //Create a new bot
-const bot = new Bot(process.env.BOT_API_KEY!!);
+const bot = new Bot<MyContext>(process.env.BOT_API_KEY!!);
 
+//Helper functions
+async function registerWallet(wallet: string, chatId: number, userId: number) {
+    if (wallet) {
+        const item = (chats.has(chatId) ? chats : chats.set(chatId, new Map())).get(chatId);
+        item?.set(userId, wallet);
+    }
+    console.log("wallets", chats);
+}
+
+//Defines conversations
+async function registerWalletConversation(conversation: MyConversation, ctx: MyContext) {
+    await ctx.reply("Start by entering your wallet address");
+    const {message} = await conversation.wait();
+    const wallet = message?.text!!;
+    await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.id);
+    await ctx.reply(`Registered your wallet: ${wallet}!`);
+}
+
+bot.use(session({
+    initial() {
+        // return empty object for now
+        return {};
+    },
+}));
+bot.use(conversations());
+
+bot.use(createConversation(registerWalletConversation));
+
+//Defines commands
 bot.command("addwallet", async (ctx) => {
     // get the chat id and store the user's information plus its wallet to the current chat.
     // we should also allow the user to add their wallet to the overall bot database if requested.
     const link = sdk.getUniversalLink();
-    const wallet = ctx.message?.text?.split(" ")?.[1];
-    if (wallet) {
-        const chat_id = (await ctx.getChat()).id;
-        const item = (chats.has(chat_id) ? chats : chats.set(chat_id, new Map())).get(chat_id);
-        item?.set(ctx.from!!.id, wallet);
-    }
-
+    const wallet = ctx.message?.text?.split(" ")?.[1]!!;
+    await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.id);
     await ctx.reply(link);
 })
 
@@ -52,9 +80,7 @@ bot.command("send", async (ctx) => {
             },
         ],
     })
-
 })
-
 
 //Pre-assign menu text
 const startMenu = "<b>web3telbot</b>\n\nWelcome to web3telbot.\n\nWe need to configure the bot using the buttons below or you can run the following commands\n/addwallet (address)";
@@ -75,9 +101,7 @@ bot.command("start", async (ctx) => {
 
 bot.callbackQuery(connectWalletButton, async (ctx) => {
     //Update message content with corresponding menu section
-    await ctx.editMessageText("Please enter your wallet address", {
-        parse_mode: "HTML",
-    });
+    await ctx.conversation.enter("registerWalletConversation");
 });
 
 /*
@@ -106,6 +130,8 @@ bot.on("message", async (ctx) => {
     //This is equivalent to forwarding, without the sender's name
     await ctx.copyMessage(ctx.message.chat.id);
 });
+
+bot.use((ctx) => ctx.reply("What a nice update."));
 
 //Start the Bot
 bot.start();
