@@ -52,87 +52,60 @@ async function registerWallet(
 }
 
 //Defines conversations
-function send(conversation: MyConversation, ctx: MyContext) {
+async function send(conversation: MyConversation, ctx: MyContext) {
     const accounts = ethereum?.request({
         method: "eth_requestAccounts",
         params: [],
     });
-    delay(2500).then(() => {
-        ctx.getChat().then((chat) => {
-            const link = sdk.getUniversalLink();
-            // Generate the QR code as a PNG buffer
-            qrcode.toBuffer(link, {
-                type: "png",
-            }).then((qrBuffer) => {
-                const qrInputFile = new InputFile(qrBuffer, "qr_code.png");
-                // send the QR code as a document
-
-                ctx.replyWithPhoto(qrInputFile, {
-                    caption: "Scan this QR Code to connect your wallet",
-                }).then(() => {
-                    ctx.reply(
-                        "Or access the following link to connect your wallet: " + link
-                    ).then(() => {
-                        accounts?.then(async (accounts) => {
-                            const parsedAccount = accounts as string[];
-                            ctx.reply("Please enter the amount of tokens").then(async () => {
-                                const {message} = await conversation.wait()
-                                const amount = message?.text!!;
-                                ctx.reply("Please enter the receiver address").then(async () => {
-                                    const {message} = await conversation.wait();
-                                    const address = message?.text!!;
-                                    ctx.reply("Please check your wallet to confirm the transaction").then(() => {
-                                        try {
-                                            ethereum?.request({
-                                                method: "eth_sendTransaction",
-                                                params: [
-                                                    {
-                                                        from: parsedAccount[0],
-                                                        to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
-                                                        value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
-                                                        // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
-                                                        //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
-                                                    },
-                                                ],
-                                            }).then((answer) => {
-                                                // check answer if 4001 the error message. This happens when we reject the transaction on MM
-                                                console.log(answer);
-                                                ctx.reply(
-                                                    "Transaction sent to address: " + address + " with amount: " + amount
-                                                ).then(() => {
-                                                    // ask client if he wants to save his wallet to the database
-                                                    // and also if there is none yet
-                                                    registerWallet(parsedAccount[0], chat.id, ctx.from!!.username!!).then(() => {
-                                                        ctx.reply("Done sending");
-                                                    })
-                                                })
-                                            });
-                                        } catch (e) {
-                                            console.log(e);
-                                            ctx.reply("Transaction failed");
-                                        }
-                                    })
-                                })
-                            })
-                        });
-                    })
-                })
-            })
+    await delay(2500)
+    const chat = await ctx.getChat()
+    const link = sdk.getUniversalLink();
+    // Generate the QR code as a PNG buffer
+    const qrBuffer = await qrcode.toBuffer(link, {
+        type: "png",
+    })
+    const qrInputFile = new InputFile(qrBuffer, "qr_code.png");
+    // send the QR code as a document
+    await ctx.replyWithPhoto(qrInputFile, {
+        caption: "Scan this QR Code to connect your wallet",
+    })
+    await ctx.reply(
+        "Or access the following link to connect your wallet: " + link
+    )
+    const parsedAccount = (await accounts) as string[];
+    await ctx.reply("Please enter the amount of tokens")
+    const {message: amountMessage} = await conversation.wait();
+    const amount = amountMessage?.text!!;
+    await ctx.reply("Please enter the receiver address")
+    const {message: addressMessage} = await conversation.wait()
+    const address = addressMessage?.text!!;
+    await ctx.reply("Please check your wallet to confirm the transaction")
+    try {
+        const answer = await ethereum?.request({
+            method: "eth_sendTransaction",
+            params: [
+                {
+                    from: parsedAccount[0],
+                    to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
+                    value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
+                    // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
+                    //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
+                },
+            ],
         })
-    });
-}
-
-async function potato(conversation: MyConversation, ctx: MyContext) {
-    ctx.reply("Please enter the receiver address").then(() => {
-        conversation.wait().then((message) => {
-            console.log(message);
-            ctx.reply("Please enter the receiver address").then(() => {
-                conversation.wait().then((message) => {
-                    console.log(message);
-                });
-            });
-        });
-    });
+        // check answer if 4001 the error message. This happens when we reject the transaction on MM
+        console.log(answer);
+        await ctx.reply(
+            "Transaction sent to address: " + address + " with amount: " + amount
+        )
+        // ask client if he wants to save his wallet to the database
+        // and also if there is none yet
+        await registerWallet(parsedAccount[0], chat.id, ctx.from!!.username!!)
+        await ctx.reply("Done sending");
+    } catch (e) {
+        console.log(e);
+        await ctx.reply("Transaction failed");
+    }
 }
 
 bot.use(
@@ -146,7 +119,6 @@ bot.use(
 bot.use(conversations());
 
 bot.use(createConversation(send));
-bot.use(createConversation(potato));
 
 //Defines commands
 bot.command("addwallet", async (ctx) => {
@@ -155,10 +127,6 @@ bot.command("addwallet", async (ctx) => {
     const wallet = ctx.message?.text?.split(" ")?.[1]!!;
     await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.username!!);
     await ctx.reply(`Registered your wallet: ${wallet}!`);
-});
-
-bot.command("potato", async (ctx) => {
-    await ctx.conversation.enter("potato");
 });
 
 //Pre-assign menu text
