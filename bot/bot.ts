@@ -12,10 +12,6 @@ const sdk = new MetaMaskSDK({
 });
 
 const ethereum = sdk.getProvider();
-ethereum?.request({
-    method: "eth_requestAccounts",
-    params: [],
-});
 
 /*
 To have a smart way to send money over, we have some approaches:
@@ -116,8 +112,15 @@ bot.callbackQuery(insertYourWalletButton, async (ctx) => {
 });
 
 bot.callbackQuery(connectYourWalletButton, async (ctx) => {
+    const accounts = ethereum?.request({
+        method: "eth_requestAccounts",
+        params: [],
+    });
+    console.log(accounts);
     const link = sdk.getUniversalLink();
     await ctx.reply("Please access the following link to connect your wallet: " + link);
+    // add qr code to message being sent
+
 })
 
 /*
