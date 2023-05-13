@@ -108,6 +108,69 @@ async function send(conversation: MyConversation, ctx: MyContext) {
     }
 }
 
+async function sendUsername(conversation: MyConversation, ctx: MyContext) {
+    const accounts = ethereum?.request({
+        method: "eth_requestAccounts",
+        params: [],
+    });
+    await delay(2500)
+    const chat = await ctx.getChat()
+    const link = sdk.getUniversalLink();
+    // Generate the QR code as a PNG buffer
+    const qrBuffer = await qrcode.toBuffer(link, {
+        type: "png",
+    })
+    const qrInputFile = new InputFile(qrBuffer, "qr_code.png");
+    // send the QR code as a document
+    await ctx.replyWithPhoto(qrInputFile, {
+        caption: "Scan this QR Code to connect your wallet",
+    })
+    await ctx.reply(
+        "Or access the following link to connect your wallet: " + link
+    )
+    const parsedAccount = (await accounts) as string[];
+    await ctx.reply("Please enter the amount of tokens")
+    const {message: amountMessage} = await conversation.wait();
+    const amount = amountMessage?.text!!;
+    await ctx.reply("What username do you want to send to?")
+    const {message: usernameMessage} = await conversation.wait()
+    const address = usernameMessage?.text!!;
+    const wallet = chats.get(chat.id)?.get(address)
+
+    if (wallet) {
+        await ctx.reply(`Transferring ${amount} to ${address}`)
+        await ctx.reply("Please check your wallet to confirm the transaction")
+        try {
+            const answer = await ethereum?.request({
+                method: "eth_sendTransaction",
+                params: [
+                    {
+                        from: parsedAccount[0],
+                        to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
+                        value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
+                        // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
+                        //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
+                    },
+                ],
+            })
+            // check answer if 4001 the error message. This happens when we reject the transaction on MM
+            console.log(answer);
+            await ctx.reply(
+                "Transaction sent to address: " + address + " with amount: " + amount
+            )
+            // ask client if he wants to save his wallet to the database
+            // and also if there is none yet
+            await registerWallet(parsedAccount[0], chat.id, ctx.from!!.username!!)
+            await ctx.reply("Done sending");
+        } catch (e) {
+            console.log(e);
+            await ctx.reply("Transaction failed");
+        }
+    } else {
+        await ctx.reply("This username does not exist. We cannot proceed");
+    }
+}
+
 bot.use(
     session({
         initial() {
@@ -119,14 +182,14 @@ bot.use(
 bot.use(conversations());
 
 bot.use(createConversation(send));
+bot.use(createConversation(sendUsername));
 
 //Defines commands
-bot.command("addwallet", async (ctx) => {
-    // get the chat id and store the user's information plus its wallet to the current chat.
-    // we should also allow the user to add their wallet to the overall bot database if requested.
-    const wallet = ctx.message?.text?.split(" ")?.[1]!!;
-    await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.username!!);
-    await ctx.reply(`Registered your wallet: ${wallet}!`);
+bot.command("start", async (ctx) => {
+    await ctx.reply(startMenu, {
+        parse_mode: "HTML",
+        reply_markup: firstMenuMarkup,
+    });
 });
 
 //Pre-assign menu text
@@ -148,17 +211,10 @@ const mmMenuMarkup = new InlineKeyboard()
     .text(sendToUsernameButton)
     .text(swapButton);
 
-//This handler sends a menu with the inline buttons we pre-assigned above
-bot.command("start", async (ctx) => {
-    await ctx.reply(startMenu, {
-        parse_mode: "HTML",
-        reply_markup: firstMenuMarkup,
-    });
-});
 
 bot.callbackQuery(useYourMetaMaskWalletButton, async (ctx) => {
     //Update message content with corresponding menu section
-    await ctx.reply(mmMenu, {
+    await ctx.editMessageText(mmMenu, {
         parse_mode: "HTML",
         reply_markup: mmMenuMarkup,
     });
@@ -167,6 +223,11 @@ bot.callbackQuery(useYourMetaMaskWalletButton, async (ctx) => {
 bot.callbackQuery(sendToAddressButton, async (ctx) => {
     await ctx.conversation.enter("send");
 });
+
+bot.callbackQuery(sendToUsernameButton, async (ctx) => {
+    await ctx.conversation.enter("sendUsername");
+})
+
 bot.callbackQuery(swapButton, async (ctx) => {
     await ctx.conversation.enter("swap");
 });
@@ -193,8 +254,6 @@ bot.on("message", async (ctx) => {
     //This is equivalent to forwarding, without the sender's name
     await ctx.copyMessage(ctx.message.chat.id);
 });
-
-bot.use((ctx) => ctx.reply("What a nice update."));
 
 //Start the Bot
 bot.start();
