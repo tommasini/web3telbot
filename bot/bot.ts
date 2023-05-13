@@ -151,11 +151,14 @@ const mmMenu = "<b>web3telbot</b>\n\nSelect what you want to do";
 //Pre-assign button text
 const useYourMetaMaskWalletButton = "Use your MetaMask wallet";
 
-const sendButton = "Send";
+const sendToAddressButton = "Send";
+const sendToUsernameButton = "Send to username";
 
 //Build keyboards
 const firstMenuMarkup = new InlineKeyboard().text(useYourMetaMaskWalletButton);
-const mmMenuMarkup = new InlineKeyboard().text(sendButton);
+const mmMenuMarkup = new InlineKeyboard()
+  .text(sendToAddressButton, "send_to_address")
+  .text(sendToUsernameButton, "send_to_username");
 
 //This handler sends a menu with the inline buttons we pre-assigned above
 bot.command("start", async (ctx) => {
@@ -173,7 +176,7 @@ bot.callbackQuery(useYourMetaMaskWalletButton, async (ctx) => {
   });
 });
 
-bot.callbackQuery(sendButton, async (ctx) => {
+bot.callbackQuery(sendToAddressButton, async (ctx) => {
   await ctx.conversation.enter("send");
 });
 /*
