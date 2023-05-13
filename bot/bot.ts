@@ -17,6 +17,17 @@ ethereum?.request({
     params: [],
 });
 
+/*
+To have a smart way to send money over, we have some approaches:
+- We can store the username instead of the userID and check if we have the wallet of that username, if yes, we continue and do the transaction. If not we respond with error
+- We can make all the users admins, and we can see the admins of the chat, that makes it so that we can access their user id and do the same as above.
+
+We can set the 'privacy' level of the wallet as well
+- The user can decide if the wallet is exposed to all the chats that he is in with the bot
+- Or the user can check if the wallet is exposed only to that specific chat
+
+ */
+
 // Bot config
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;
