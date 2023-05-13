@@ -29,27 +29,64 @@ We can set the 'privacy' level of the wallet as well
 type MyContext = Context & ConversationFlavor;
 type MyConversation = Conversation<MyContext>;
 // maps the chat id to a map of <user id to wallet>
-const chats = new Map<number, Map<number, string>>();
+const chats = new Map<number, Map<string, string>>();
 
 //Create a new bot
 const bot = new Bot<MyContext>(process.env.BOT_API_KEY!!);
 
 //Helper functions
-async function registerWallet(wallet: string, chatId: number, userId: number) {
+async function registerWallet(wallet: string, chatId: number, username: string) {
     if (wallet) {
         const item = (chats.has(chatId) ? chats : chats.set(chatId, new Map())).get(chatId);
-        item?.set(userId, wallet);
+        item?.set(username, wallet);
     }
     console.log("wallets", chats);
 }
 
 //Defines conversations
-async function registerWalletConversation(conversation: MyConversation, ctx: MyContext) {
-    await ctx.reply("Start by entering your wallet address");
-    const {message} = await conversation.wait();
-    const wallet = message?.text!!;
-    await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.id);
-    await ctx.reply(`Registered your wallet: ${wallet}!`);
+async function send(conversation: MyConversation, ctx: MyContext) {
+    const accounts = ethereum?.request({
+        method: "eth_requestAccounts",
+        params: [],
+    });
+    await delay(2500);
+    const link = sdk.getUniversalLink();
+
+    await ctx.reply("Please access the following link to connect your wallet: " + link);
+    const parsedAccount = await accounts as string[];
+
+    await ctx.reply("Please enter the amount of tokens");
+    const {message: amountMessage} = await conversation.wait();
+    const amount = amountMessage?.text!!;
+    await ctx.reply("Please enter the receiver address");
+    const {message: addressMessage} = await conversation.wait();
+    const address = addressMessage?.text!!;
+    await ctx.reply("Please check your wallet to confirm the transaction");
+    try {
+        const answer = await ethereum?.request({
+            method: "eth_sendTransaction",
+            params: [
+                {
+                    from: parsedAccount[0],
+                    to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
+                    value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
+                    // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
+                    //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
+                },
+            ],
+        })
+        // check answer if 4001 the error message. This happens when we reject the transaction on MM
+        console.log(answer)
+        await ctx.reply("Transaction sent to address: " + address + " with amount: " + amount);
+
+        // ask client if he wants to save his wallet to the database
+        // and also if there is none yet
+        const wallet = ctx.message?.text!!;
+        await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.username!!);
+    } catch (e) {
+        console.log(e);
+        await ctx.reply("Transaction failed");
+    }
 }
 
 bot.use(session({
@@ -60,44 +97,29 @@ bot.use(session({
 }));
 bot.use(conversations());
 
-bot.use(createConversation(registerWalletConversation));
+bot.use(createConversation(send));
 
 //Defines commands
 bot.command("addwallet", async (ctx) => {
     // get the chat id and store the user's information plus its wallet to the current chat.
     // we should also allow the user to add their wallet to the overall bot database if requested.
     const wallet = ctx.message?.text?.split(" ")?.[1]!!;
-    await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.id);
+    await registerWallet(wallet, (await ctx.getChat()).id, ctx.from!!.username!!);
     await ctx.reply(`Registered your wallet: ${wallet}!`);
 })
 
-bot.command("send", async (ctx) => {
-    const chat_id = (await ctx.getChat()).id;
-    const toAccount = ctx.message?.text?.split(" ")?.[1];
-    const amount = ctx.message?.text?.split(" ")?.[2]; // how to use?
-    await ethereum?.request({
-        method: "eth_sendTransaction",
-        params: [
-            {
-                from: chats.get(chat_id)?.get(ctx.from!!.id),
-                to: toAccount, //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
-                value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
-                // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
-                //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
-            },
-        ],
-    })
-})
-
 //Pre-assign menu text
-const startMenu = "<b>web3telbot</b>\n\nWelcome to web3telbot.\n\nWe need to configure the bot using the buttons below or you can run the following commands\n/addwallet (address)";
+const startMenu = "<b>web3telbot</b>\n\nWelcome to web3telbot.\n\nUse the buttons below to navigate the bot.";
+const mmMenu = "<b>web3telbot</b>\n\nSelect what you want to do";
 
 //Pre-assign button text
-const insertYourWalletButton = "Insert your wallet address";
-const connectYourWalletButton = "Connect your wallet with URL";
+const useYourMetaMaskWalletButton = "Use your MetaMask wallet";
+
+const sendButton = "Send";
 
 //Build keyboards
-const firstMenuMarkup = new InlineKeyboard().text(insertYourWalletButton).text(connectYourWalletButton);
+const firstMenuMarkup = new InlineKeyboard().text(useYourMetaMaskWalletButton);
+const mmMenuMarkup = new InlineKeyboard().text(sendButton);
 
 //This handler sends a menu with the inline buttons we pre-assigned above
 bot.command("start", async (ctx) => {
@@ -107,36 +129,17 @@ bot.command("start", async (ctx) => {
     });
 });
 
-bot.callbackQuery(insertYourWalletButton, async (ctx) => {
+bot.callbackQuery(useYourMetaMaskWalletButton, async (ctx) => {
     //Update message content with corresponding menu section
-    await ctx.conversation.enter("registerWalletConversation");
+    await ctx.reply(mmMenu, {
+        parse_mode: "HTML",
+        reply_markup: mmMenuMarkup,
+    });
 });
 
-bot.callbackQuery(connectYourWalletButton, async (ctx) => {
-    const accounts = ethereum?.request({
-        method: "eth_requestAccounts",
-        params: [],
-    });
-    await delay(2500);
-    const link = sdk.getUniversalLink();
-    await ctx.reply("Please access the following link to connect your wallet: " + link);
-    const parsedAccount = await accounts as string[];
-    await ethereum?.request({
-        method: "eth_sendTransaction",
-        params: [
-            {
-                from: parsedAccount[0],
-                to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
-                value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
-                // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
-                //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
-            },
-        ],
-    })
-    // add qr code to message being sent
-
+bot.callbackQuery(sendButton, async (ctx) => {
+    await ctx.conversation.enter("send");
 })
-
 /*
 //This handler processes next button on the menu
 bot.callbackQuery(nextButton, async (ctx) => {
