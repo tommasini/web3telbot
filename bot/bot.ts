@@ -106,6 +106,10 @@ async function send(conversation: MyConversation, ctx: MyContext) {
         console.log(e);
         await ctx.reply("Transaction failed");
     }
+    await ctx.reply(startMenu, {
+        parse_mode: "HTML",
+        reply_markup: firstMenuMarkup,
+    });
 }
 
 async function sendUsername(conversation: MyConversation, ctx: MyContext) {
@@ -169,6 +173,10 @@ async function sendUsername(conversation: MyConversation, ctx: MyContext) {
     } else {
         await ctx.reply("This username does not exist. We cannot proceed");
     }
+    await ctx.reply(startMenu, {
+        parse_mode: "HTML",
+        reply_markup: firstMenuMarkup,
+    });
 }
 
 bot.use(
