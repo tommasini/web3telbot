@@ -121,26 +121,31 @@ async function send(conversation: MyConversation, ctx: MyContext) {
 }
 
 async function sendUsername(conversation: MyConversation, ctx: MyContext) {
-    const accounts = ethereum?.request({
-        method: "eth_requestAccounts",
-        params: [],
-    });
-    await delay(2500);
+    if (!logged.has(ctx.from!!.id)) {
+        const accounts = ethereum?.request({
+            method: "eth_requestAccounts",
+            params: [],
+        });
+        await delay(2500);
+        const link = sdk.getUniversalLink();
+        // Generate the QR code as a PNG buffer
+        const qrBuffer = await qrcode.toBuffer(link, {
+            type: "png",
+        });
+        const qrInputFile = new InputFile(qrBuffer, "qr_code.png");
+        // send the QR code as a document
+        await ctx.replyWithPhoto(qrInputFile, {
+            caption: "Scan this QR Code to connect your wallet",
+        });
+        await ctx.reply(
+            "Or access the following link to connect your wallet: " + link
+        );
+        const parsedAccount = (await accounts) as string[];
+        logged.set(ctx.from!!.id, parsedAccount[0]);
+    }
     const chat = await ctx.getChat();
-    const link = sdk.getUniversalLink();
-    // Generate the QR code as a PNG buffer
-    const qrBuffer = await qrcode.toBuffer(link, {
-        type: "png",
-    });
-    const qrInputFile = new InputFile(qrBuffer, "qr_code.png");
-    // send the QR code as a document
-    await ctx.replyWithPhoto(qrInputFile, {
-        caption: "Scan this QR Code to connect your wallet",
-    });
-    await ctx.reply(
-        "Or access the following link to connect your wallet: " + link
-    );
-    const parsedAccount = (await accounts) as string[];
+
+    const account = logged.get(ctx.from!!.id)!!;
     await ctx.reply("Please enter the amount of tokens");
     const {message: amountMessage} = await conversation.wait();
     const amount = amountMessage?.text!!;
@@ -157,7 +162,7 @@ async function sendUsername(conversation: MyConversation, ctx: MyContext) {
                 method: "eth_sendTransaction",
                 params: [
                     {
-                        from: parsedAccount[0],
+                        from: account,
                         to: "0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272", //"0xC4955C0d639D99699Bfd7Ec54d9FaFEe40e4D272"
                         value: "0x38D7EA4C68000", // Only required to send ether to the recipient from the initiating external account.
                         // gasPrice: "0x09184e72a000", // Customizable by the user during MetaMask confirmation.
@@ -172,7 +177,7 @@ async function sendUsername(conversation: MyConversation, ctx: MyContext) {
             );
             // ask client if he wants to save his wallet to the database
             // and also if there is none yet
-            await registerWallet(parsedAccount[0], chat.id, ctx.from!!.username!!);
+            await registerWallet(account, chat.id, ctx.from!!.username!!);
             await ctx.reply("Done sending");
         } catch (e) {
             console.log(e);
