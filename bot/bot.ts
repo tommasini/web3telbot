@@ -271,7 +271,7 @@ async function balance(conversation: MyConversation, ctx: MyContext) {
         // check answer if 4001 the error message. This happens when we reject the transaction on MM
         console.log(answer);
         await ctx.reply(
-            "Balance: " + answer,
+            "Balance: " + (weiToEth(answer as BigNumber)) + " ETH",
         );
     } catch (e) {
         console.log(e);
