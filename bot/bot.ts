@@ -426,7 +426,7 @@ bot.on("message", async (ctx) => {
     );
 
     //This is equivalent to forwarding, without the sender's name
-    await ctx.copyMessage(ctx.message.chat.id);
+    //await ctx.copyMessage(ctx.message.chat.id);
 });
 
 //Start the Bot
