@@ -7,6 +7,7 @@ import {type Conversation, type ConversationFlavor, conversations, createConvers
 import qrcode from "qrcode";
 import {BigNumber, ethers} from "ethers";
 import {formatEther} from "ethers/lib/utils";
+import axios from "axios";
 
 dotenv.config();
 
@@ -25,8 +26,8 @@ function convertEthToWei(ethAmount: string): {
     return {weiAmount, hexAmount};
 }
 
-function weiToEth(wei: BigNumber): string {
-    return formatEther(wei);
+function weiToEth(wei: BigNumber): number {
+    return +formatEther(wei);
 }
 
 function isNumber(value: string): boolean {
@@ -41,6 +42,15 @@ function isAddress(value: string): boolean {
         return true;
     } catch (e) {
         return false;
+    }
+}
+
+async function getEtherPriceInEuros() {
+    try {
+        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=eur');
+        return response.data.ethereum.eur;
+    } catch (error) {
+        console.error(error);
     }
 }
 
@@ -284,6 +294,48 @@ async function balance(conversation: MyConversation, ctx: MyContext) {
     }
 }
 
+async function ethToFiat(conversation: MyConversation, ctx: MyContext) {
+    const accounts = ethereum?.request({
+        method: "eth_requestAccounts",
+        params: [],
+    });
+    await delay(2500);
+    const link = sdk.getUniversalLink();
+    // Generate the QR code as a PNG buffer
+    const qrBuffer = await qrcode.toBuffer(link, {
+        type: "png",
+    });
+    const qrInputFile = new InputFile(qrBuffer, "qr_code.png");
+    // send the QR code as a document
+    await ctx.replyWithPhoto(qrInputFile, {
+        caption: "Scan this QR Code to connect your wallet",
+    });
+    await ctx.reply(
+        "Or access the following link to connect your wallet: " + link
+    );
+    const parsedAccount = (await accounts) as string[];
+
+    try {
+        const answer = await ethereum?.request({
+            method: "eth_getBalance",
+            params: [parsedAccount[0], "latest"],
+        });
+        // check answer if 4001 the error message. This happens when we reject the transaction on MM
+        console.log(answer);
+        await ctx.reply(
+            "Balance: " + (weiToEth(answer as BigNumber)) * (await getEtherPriceInEuros()) + " EUR",
+        );
+    } catch (e) {
+        console.log(e);
+        await ctx.reply("Something went wrong");
+    } finally {
+        await ctx.reply(startMenu, {
+            parse_mode: "HTML",
+            reply_markup: firstMenuMarkup,
+        });
+    }
+}
+
 bot.use(
     session({
         initial() {
@@ -297,6 +349,7 @@ bot.use(conversations());
 bot.use(createConversation(send));
 bot.use(createConversation(sendUsername));
 bot.use(createConversation(balance));
+bot.use(createConversation(ethToFiat));
 
 //Defines commands
 bot.command("start", async (ctx) => {
@@ -317,13 +370,15 @@ const useYourMetaMaskWalletButton = "Use your MetaMask wallet";
 const sendToAddressButton = "Send";
 const sendToUsernameButton = "Send to username";
 const balanceButton = "Balance";
+const balanceInEurButton = "Balance in EUR";
 
 //Build keyboards
 const firstMenuMarkup = new InlineKeyboard().text(useYourMetaMaskWalletButton);
 const mmMenuMarkup = new InlineKeyboard()
     .text(sendToAddressButton)
     .text(sendToUsernameButton)
-    .text(balanceButton);
+    .text(balanceButton)
+    .text(balanceInEurButton);
 
 bot.callbackQuery(useYourMetaMaskWalletButton, async (ctx) => {
     //Update message content with corresponding menu section
@@ -343,6 +398,10 @@ bot.callbackQuery(sendToUsernameButton, async (ctx) => {
 
 bot.callbackQuery(balanceButton, async (ctx) => {
     await ctx.conversation.enter("balance");
+});
+
+bot.callbackQuery(balanceInEurButton, async (ctx) => {
+    await ctx.conversation.enter("ethToFiat");
 });
 /*
 //This handler processes next button on the menu
