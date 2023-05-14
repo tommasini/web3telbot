@@ -377,8 +377,10 @@ const firstMenuMarkup = new InlineKeyboard().text(useYourMetaMaskWalletButton);
 const mmMenuMarkup = new InlineKeyboard()
     .text(sendToAddressButton)
     .text(sendToUsernameButton)
+    .row()
     .text(balanceButton)
     .text(balanceInEurButton);
+
 
 bot.callbackQuery(useYourMetaMaskWalletButton, async (ctx) => {
     //Update message content with corresponding menu section
